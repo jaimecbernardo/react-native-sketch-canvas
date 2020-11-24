@@ -15,6 +15,9 @@ namespace winrt
   using namespace Windows::UI::Xaml::Controls;
   using namespace Windows::UI::Xaml::Input;
   using namespace Windows::UI::Xaml::Media;
+  using namespace Windows::Foundation::Numerics;
+  using namespace Microsoft::Graphics::Canvas;
+  using namespace Microsoft::Graphics::Canvas::UI::Xaml;
 } // namespace winrt
 
 namespace winrt::RNSketchCanvas::implementation
@@ -23,7 +26,13 @@ namespace winrt::RNSketchCanvas::implementation
   RNSketchCanvasModule::RNSketchCanvasModule(winrt::IReactContext const& reactContext) : m_reactContext(reactContext)
   {
     // Sets a Transparent background so that it receives mouse events in the JavaScript side.
-    this->Background(SolidColorBrush(Colors::Transparent()));
+    mCanvasControl = Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl();
+    this->Children().Append(mCanvasControl);
+    mCanvasControl.Background(SolidColorBrush(Colors::Transparent()));
+    // TODO: event tokens from these. Or use the revokers.
+    mCanvasControl.Draw({ this, &RNSketchCanvasModule::OnCanvasDraw });
+    mCanvasControl.SizeChanged({ this, &RNSketchCanvasModule::OnCanvasSizeChanged });
+
     // TODO: hook up events from the controll
     /*m_textChangedRevoker = this->TextChanged(winrt::auto_revoke,
         [ref = get_weak()](auto const& sender, auto const& args) {
@@ -113,20 +122,20 @@ namespace winrt::RNSketchCanvas::implementation
       this->addPoint(commandArgs[0].AsSingle(), commandArgs[1].AsSingle());
     } else if (commandId == L"newPath")
     {
-      this->newPath(commandArgs[0].AsInt32(),commandArgs[1].AsUInt32(), commandArgs[2].AsSingle());
+      this->newPath(commandArgs[0].AsInt32(), commandArgs[1].AsUInt32(), commandArgs[2].AsSingle());
     } else if (commandId == L"clear")
     {
       this->clear();
     } else if (commandId == L"addPath")
     {
       const auto& path = commandArgs[3].AsArray();
-      std::vector<Point> pointPath;
+      std::vector<float2> pointPath;
       for (int i = 0; i < path.size(); i++)
       {
         std::string pointstring = path[i].AsString();
         int commaIndex = pointstring.find(",");
         pointPath.push_back(
-          Point(
+          float2(
             std::stof(pointstring.substr(0, commaIndex)),
             std::stof(pointstring.substr(commaIndex + 1, std::string::npos))
           )
@@ -149,22 +158,34 @@ namespace winrt::RNSketchCanvas::implementation
     }
     mPaths.clear();
     mCurrentPath = nullptr;
-    this->Children().Clear();
+    mNeedsFullRedraw = true;
+    mCanvasControl.Invalidate();
   }
   void RNSketchCanvasModule::newPath(int32_t id, uint32_t strokeColor, float strokeWidth)
   {
-    mCurrentPath = new SketchData(*this, id, Utility::uint32ToColor(strokeColor), strokeWidth);
+    Color color = Utility::uint32ToColor(strokeColor);
+    mCurrentPath = new SketchData(id, color, strokeWidth);
     mPaths.push_back(mCurrentPath);
-    //is Erase
+    //is Erase, do we need to disable hardware acceleration? through ForceSoftwareRenderer
+    mCanvasControl.Invalidate();
   }
 
   void RNSketchCanvasModule::addPoint(float x, float y)
   {
     Rect updateRect = mCurrentPath->addPoint(Point(x, y));
-    //isTranslucent
-    mCurrentPath->drawLastPoint(*this);
+    if (mCurrentPath->isTranslucent)
+    {
+      auto session = mTranslucentDrawingCanvas.value().CreateDrawingSession();
+      session.Clear(Colors::Transparent());
+      mCurrentPath->draw(session);
+    } else
+    {
+      auto session = mDrawingCanvas.value().CreateDrawingSession();
+      mCurrentPath->drawLastPoint(session);
+    }
+    mCanvasControl.Invalidate();
   }
-  void RNSketchCanvasModule::addPath(int32_t id, uint32_t strokeColor, float strokeWidth, std::vector<winrt::Windows::Foundation::Point> points)
+  void RNSketchCanvasModule::addPath(int32_t id, uint32_t strokeColor, float strokeWidth, std::vector<float2> points)
   {
     bool exist = false;
     for (SketchData* data : mPaths)
@@ -176,10 +197,13 @@ namespace winrt::RNSketchCanvas::implementation
     }
     if (!exist)
     {
-      SketchData* newPath = new SketchData(*this, id, Utility::uint32ToColor(strokeColor), strokeWidth, points);
+      SketchData* newPath = new SketchData(id, Utility::uint32ToColor(strokeColor), strokeWidth, points);
       mPaths.push_back(newPath);
-      //isErase?
-      newPath->draw(*this);
+      {
+        auto session = mDrawingCanvas.value().CreateDrawingSession();
+        newPath->draw(session);
+      }
+      mCanvasControl.Invalidate();
     }
   }
   void RNSketchCanvasModule::deletePath(int32_t id)
@@ -197,17 +221,70 @@ namespace winrt::RNSketchCanvas::implementation
     {
       SketchData* path = mPaths[index];
       mPaths.erase(mPaths.begin() + index);
-      path->removeFromCanvas(*this);
       delete path;
+      mNeedsFullRedraw = true;
+      mCanvasControl.Invalidate();
     }
   }
   void RNSketchCanvasModule::end()
   {
     if (mCurrentPath != nullptr)
     {
-      //translucent
-      mCurrentPath->draw(*this);
+      if (mCurrentPath->isTranslucent)
+      {
+        {
+          auto session = mDrawingCanvas.value().CreateDrawingSession();
+          mCurrentPath->draw(session);
+        }
+        {
+          auto session = mTranslucentDrawingCanvas.value().CreateDrawingSession();
+          session.Clear(Colors::Transparent());
+        }
+      }
       mCurrentPath = nullptr;
     }
   }
+  void RNSketchCanvasModule::OnCanvasDraw(CanvasControl const& canvas, CanvasDrawEventArgs const& args)
+  {
+    if (mNeedsFullRedraw && mDrawingCanvas.has_value())
+    {
+      auto session = mDrawingCanvas.value().CreateDrawingSession();
+      session.Clear(Colors::Transparent());
+      for (SketchData* path : mPaths)
+      {
+        path->draw(session);
+      }
+      mNeedsFullRedraw = false;
+    }
+
+    if (mDrawingCanvas.has_value())
+    {
+      args.DrawingSession().DrawImage(mDrawingCanvas.value());
+    }
+    if (mTranslucentDrawingCanvas.has_value() && mCurrentPath != nullptr && mCurrentPath->isTranslucent)
+    {
+      args.DrawingSession().DrawImage(mTranslucentDrawingCanvas.value());
+    }
+
+  }
+  void RNSketchCanvasModule::OnCanvasSizeChanged(const IInspectable canvas, Windows::UI::Xaml::SizeChangedEventArgs const& args)
+  {
+    Size newSize = args.NewSize();
+    if (newSize.Width >= 0 && newSize.Height >= 0)
+    {
+      mDrawingCanvas = CanvasRenderTarget(CanvasDevice::GetSharedDevice(), newSize.Width, newSize.Height, mCanvasControl.Dpi());
+      {
+        auto session = mDrawingCanvas.value().CreateDrawingSession();
+        session.Clear(Colors::Transparent());
+      }
+      mTranslucentDrawingCanvas = CanvasRenderTarget(CanvasDevice::GetSharedDevice(), newSize.Width, newSize.Height, mCanvasControl.Dpi());
+      {
+        auto session = mTranslucentDrawingCanvas.value().CreateDrawingSession();
+        session.Clear(Colors::Transparent());
+      }
+      mNeedsFullRedraw = true;
+      mCanvasControl.Invalidate();
+    }
+  }
+
 }

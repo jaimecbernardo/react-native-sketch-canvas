@@ -9,3 +9,7 @@
 #include <winrt/Windows.UI.Xaml.Shapes.h>
 #include <winrt/Windows.UI.Xaml.Media.h>
 #include <winrt/Microsoft.ReactNative.h>
+#include <winrt/Microsoft.Graphics.Canvas.h>
+#include <winrt/Microsoft.Graphics.Canvas.Geometry.h>
+#include <winrt/Microsoft.Graphics.Canvas.Brushes.h>
+#include <winrt/Microsoft.Graphics.Canvas.UI.Xaml.h>

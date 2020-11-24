@@ -33,18 +33,25 @@ namespace winrt::RNSketchCanvas::implementation
     void clear();
     void newPath(int32_t id, uint32_t strokeColor, float strokeWidth);
     void addPoint(float x, float y);
-    void addPath(int32_t id, uint32_t strokeColor, float strokeWidth, std::vector<winrt::Windows::Foundation::Point> points);
+    void addPath(int32_t id, uint32_t strokeColor, float strokeWidth, std::vector<winrt::Windows::Foundation::Numerics::float2> points);
     void deletePath(int32_t id);
     void end();
 
   private:
     std::vector<SketchData*> mPaths;
     SketchData* mCurrentPath = nullptr;
+    Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl mCanvasControl;
+    bool mNeedsFullRedraw = true;
+    std::optional<winrt::Microsoft::Graphics::Canvas::CanvasRenderTarget> mDrawingCanvas = std::nullopt;
+    std::optional<winrt::Microsoft::Graphics::Canvas::CanvasRenderTarget> mTranslucentDrawingCanvas = std::nullopt;
+    winrt::Windows::Foundation::Numerics::float2 mOldSize = winrt::Windows::Foundation::Numerics::float2(-1.f, -1.f);
 
     void OnTextChanged(winrt::Windows::Foundation::IInspectable const& sender,
       winrt::Windows::UI::Xaml::Controls::TextChangedEventArgs const& args);
     Microsoft::ReactNative::IReactContext m_reactContext{ nullptr };
     winrt::Windows::UI::Xaml::Controls::TextBox::TextChanged_revoker m_textChangedRevoker{};
+    void OnCanvasDraw(Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl const&, Microsoft::Graphics::Canvas::UI::Xaml::CanvasDrawEventArgs const&);
+    void OnCanvasSizeChanged(const winrt::Windows::Foundation::IInspectable, Windows::UI::Xaml::SizeChangedEventArgs const&);
   };
 }
 
