@@ -53,6 +53,10 @@ namespace winrt::RNSketchCanvas::implementation
       module.UpdateProperties(propertyMapReader);
     }
   }
+  winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasViewManager::ExportedViewConstants() noexcept
+  {
+    return winrt::RNSketchCanvas::implementation::RNSketchCanvasModule::ExportedViewConstants();
+  }
   // IViewManagerWithExportedEventTypeConstants
   ConstantProviderDelegate RNSketchCanvasViewManager::ExportedCustomBubblingEventTypeConstants() noexcept
   {

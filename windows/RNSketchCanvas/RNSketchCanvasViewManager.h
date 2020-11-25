@@ -11,6 +11,7 @@ namespace winrt::RNSketchCanvas::implementation
     winrt::Microsoft::ReactNative::IViewManager,
     winrt::Microsoft::ReactNative::IViewManagerWithReactContext,
     winrt::Microsoft::ReactNative::IViewManagerWithNativeProperties,
+    winrt::Microsoft::ReactNative::IViewManagerWithExportedViewConstants,
     winrt::Microsoft::ReactNative::IViewManagerWithExportedEventTypeConstants,
     winrt::Microsoft::ReactNative::IViewManagerWithCommands>
   {
@@ -33,6 +34,10 @@ namespace winrt::RNSketchCanvas::implementation
     void UpdateProperties(
       winrt::Windows::UI::Xaml::FrameworkElement const& view,
       winrt::Microsoft::ReactNative::IJSValueReader const& propertyMapReader) noexcept;
+
+    // IViewManagerWithExportedViewConstants
+    winrt::Microsoft::ReactNative::ConstantProviderDelegate
+      ExportedViewConstants() noexcept;
 
     // IViewManagerWithExportedEventTypeConstants
     winrt::Microsoft::ReactNative::ConstantProviderDelegate ExportedCustomBubblingEventTypeConstants() noexcept;

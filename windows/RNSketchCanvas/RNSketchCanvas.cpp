@@ -30,8 +30,8 @@ namespace winrt::RNSketchCanvas::implementation
     this->Children().Append(mCanvasControl);
     mCanvasControl.Background(SolidColorBrush(Colors::Transparent()));
     // TODO: event tokens from these. Or use the revokers.
-    mCanvasControl.Draw({ this, &RNSketchCanvasModule::OnCanvasDraw });
-    mCanvasControl.SizeChanged({ this, &RNSketchCanvasModule::OnCanvasSizeChanged });
+    mCanvasDrawRevoker = mCanvasControl.Draw(winrt::auto_revoke, { get_weak(), &RNSketchCanvasModule::OnCanvasDraw });
+    mCanvaSizeChangedRevoker = mCanvasControl.SizeChanged(winrt::auto_revoke, { get_weak(), &RNSketchCanvasModule::OnCanvasSizeChanged });
 
     // TODO: hook up events from the controll
     /*m_textChangedRevoker = this->TextChanged(winrt::auto_revoke,
@@ -40,6 +40,63 @@ namespace winrt::RNSketchCanvas::implementation
             self->OnTextChanged(sender, args);
         }
     });*/
+  }
+
+  void RNSketchCanvasModule::openImageFile(std::string filename, std::string directory, std::string mode)
+  {
+    if (!filename.empty())
+    {
+      if (!directory.empty())
+      {
+        filename = directory + "/" + filename;
+      }
+      Uri uri(nullptr);
+      bool useUri = false;
+      try
+      {
+        uri = Uri(winrt::to_hstring(filename));
+        std::string schemeName = winrt::to_string(uri.SchemeName());
+        if (schemeName.rfind("ms-", 0) == 0)
+        {
+          useUri = true;
+        }
+      } catch (...)
+      {
+      }
+      try
+      {
+        IAsyncOperation<CanvasBitmap> asyncBitmapOp;
+
+        if (useUri)
+        {
+          // Valid URI for file or special ms- location URLs.
+          asyncBitmapOp = CanvasBitmap::LoadAsync(CanvasDevice::GetSharedDevice(), uri);
+        } else
+        {
+          asyncBitmapOp = CanvasBitmap::LoadAsync(CanvasDevice::GetSharedDevice(), winrt::to_hstring(filename));
+        }
+        asyncBitmapOp.Completed(
+          [=](auto&& sender, AsyncStatus const args)
+          {
+            if (args == AsyncStatus::Completed)
+            {
+              CanvasBitmap bitmap = sender.GetResults();
+              m_reactContext.UIDispatcher().Post([=]()
+                {
+                  mBackgroundImage = bitmap;
+                  mOriginalWidth = mBackgroundImage.value().SizeInPixels().Width;
+                  mOriginalHeight = mBackgroundImage.value().SizeInPixels().Height;
+                  mContentMode = mode;
+                  mCanvasControl.Invalidate();
+                }
+              );
+            }
+          }
+        );
+      } catch (...)
+      {
+      }
+    }
   }
 
   void RNSketchCanvasModule::OnTextChanged(winrt::Windows::Foundation::IInspectable const&,
@@ -62,28 +119,66 @@ namespace winrt::RNSketchCanvas::implementation
     IMapView<winrt::hstring, winrt::Microsoft::ReactNative::ViewManagerPropertyType>
     RNSketchCanvasModule::NativeProps() noexcept
   {
-    // TODO: define props here
     auto nativeProps = winrt::single_threaded_map<hstring, ViewManagerPropertyType>();
-    nativeProps.Insert(L"sampleProp", ViewManagerPropertyType::String);
+    nativeProps.Insert(L"localSourceImage", ViewManagerPropertyType::Map);
+    nativeProps.Insert(L"text", ViewManagerPropertyType::Array);
     return nativeProps.GetView();
   }
 
   void RNSketchCanvasModule::UpdateProperties(winrt::Microsoft::ReactNative::IJSValueReader const& propertyMapReader) noexcept
   {
-    // TODO: handle the props here
-    /*const JSValueObject &propertyMap = JSValue::ReadObjectFrom(propertyMapReader);
-    for (auto const &pair : propertyMap) {
-        auto const &propertyName = pair.first;
-        auto const &propertyValue = pair.second;
-        if (propertyName == "sampleProp") {
-            if (propertyValue != nullptr) {
-                auto const &value = propertyValue.AsString();
-                this->Text(winrt::to_hstring(value));
-            } else {
-                this->Text(L"");
-            }
+    const JSValueObject& propertyMap = JSValue::ReadObjectFrom(propertyMapReader);
+    for (auto const& pair : propertyMap)
+    {
+      auto const& propertyName = pair.first;
+      auto const& propertyValue = pair.second;
+      if (propertyName == "localSourceImage")
+      {
+        if (propertyValue != nullptr)
+        {
+          auto const& localSourceImageMap = propertyValue.AsObject();
+          std::string filename = "";
+          std::string directory = "";
+          std::string mode = "";
+          
+          auto value = localSourceImageMap.find("filename");
+          if (value != localSourceImageMap.end())
+          {
+            filename = value->second.AsString();
+          }
+          value = localSourceImageMap.find("directory");
+          if (value != localSourceImageMap.end())
+          {
+            directory = value->second.AsString();
+          }
+          value = localSourceImageMap.find("mode");
+          if (value != localSourceImageMap.end())
+          {
+            mode = value->second.AsString();
+          }
+
+          this->openImageFile(filename, directory, mode);
         }
-    }*/
+      } else if (propertyName == "text")
+      {
+        if (propertyValue != nullptr)
+        {
+          //this->setCanvasText(propertyValue.AsString());
+        }
+      }
+    }
+  }
+
+  winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasModule::ExportedViewConstants() noexcept
+  {
+    return [](winrt::Microsoft::ReactNative::IJSValueWriter const& constantWriter)
+    {
+      WriteProperty(constantWriter, L"MainBundlePath", L"ms-appx:///");
+      WriteProperty(constantWriter, L"NSCachesDirectory", Windows::Storage::ApplicationData::Current().LocalCacheFolder().Path());
+      WriteProperty(constantWriter, L"TemporaryDirectory", L"ms-appdata:///temp");
+      WriteProperty(constantWriter, L"RoamingDirectory", L"ms-appdata:///roaming");
+      WriteProperty(constantWriter, L"LocalDirectory", L"ms-appdata:///local");
+    };
   }
 
   winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasModule::ExportedCustomBubblingEventTypeConstants() noexcept
@@ -130,7 +225,7 @@ namespace winrt::RNSketchCanvas::implementation
     {
       const auto& path = commandArgs[3].AsArray();
       std::vector<float2> pointPath;
-      for (int i = 0; i < path.size(); i++)
+      for (unsigned int i = 0; i < path.size(); i++)
       {
         std::string pointstring = path[i].AsString();
         int commaIndex = pointstring.find(",");
@@ -209,7 +304,7 @@ namespace winrt::RNSketchCanvas::implementation
   void RNSketchCanvasModule::deletePath(int32_t id)
   {
     int index = -1;
-    for (int i = 0; i < mPaths.size(); i++)
+    for (unsigned int i = 0; i < mPaths.size(); i++)
     {
       if (mPaths[i]->id == id)
       {
@@ -255,6 +350,20 @@ namespace winrt::RNSketchCanvas::implementation
         path->draw(session);
       }
       mNeedsFullRedraw = false;
+    }
+
+    if (mBackgroundImage.has_value())
+    {
+      args.DrawingSession().DrawImage(
+        mBackgroundImage.value(),
+        Utility::fillImage(
+          mBackgroundImage.value().SizeInPixels().Width,
+          mBackgroundImage.value().SizeInPixels().Height,
+          canvas.ActualWidth(),
+          canvas.ActualHeight(),
+          mContentMode
+        )
+      );
     }
 
     if (mDrawingCanvas.has_value())

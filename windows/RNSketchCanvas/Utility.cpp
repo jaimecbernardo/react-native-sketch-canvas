@@ -22,4 +22,27 @@ namespace winrt::RNSketchCanvas::implementation
     return result;
   }
 
+  Windows::Foundation::Rect Utility::fillImage(float imgWidth, float imgHeight, float targetWidth, float targetHeight, std::string mode)
+  {
+    float imageAspectRatio = imgWidth / imgHeight;
+    float targetAspectRatio = targetWidth / targetHeight;
+    if (mode == "AspectFill")
+    {
+      float scaleFactor = targetAspectRatio < imageAspectRatio ? targetHeight / imgHeight : targetWidth / imgWidth;
+      float w = imgWidth * scaleFactor;
+      float h = imgHeight * scaleFactor;
+      return Windows::Foundation::Rect((targetWidth - w) / 2, (targetHeight - h) / 2, w, h);
+    } else if (mode == "ScaleToFill")
+    {
+      return Windows::Foundation::Rect(0, 0, targetWidth, targetHeight);
+    } else
+    {
+      // AspectFit
+      float scaleFactor = targetAspectRatio > imageAspectRatio ? targetHeight / imgHeight : targetWidth / imgWidth;
+      float w = imgWidth * scaleFactor;
+      float h = imgHeight * scaleFactor;
+      return Windows::Foundation::Rect((targetWidth - w) / 2, (targetHeight - h) / 2, w, h);
+    }
+  }
+
 }
