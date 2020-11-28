@@ -9,6 +9,18 @@
 namespace winrt::RNSketchCanvas::implementation
 {
 
+  class CanvasText
+  {
+  public:
+    std::string text;
+    Microsoft::Graphics::Canvas::Text::CanvasTextFormat paint;
+    winrt::Windows::Foundation::Numerics::float2 anchor, position, drawPosition, lineOffset;
+    bool isAbsoluteCoordinate;
+    winrt::Windows::Foundation::Rect textBounds;
+    float height;
+    Windows::UI::Color color;
+  };
+
   class RNSketchCanvasView : public RNSketchCanvasViewT<RNSketchCanvasView>
   {
   public:
@@ -48,15 +60,20 @@ namespace winrt::RNSketchCanvas::implementation
   private:
     std::vector<SketchData*> mPaths;
     SketchData* mCurrentPath = nullptr;
+
     Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl mCanvasControl;
+
     bool mNeedsFullRedraw = true;
     std::optional<winrt::Microsoft::Graphics::Canvas::CanvasRenderTarget> mDrawingCanvas = std::nullopt;
     std::optional<winrt::Microsoft::Graphics::Canvas::CanvasRenderTarget> mTranslucentDrawingCanvas = std::nullopt;
-    winrt::Windows::Foundation::Numerics::float2 mOldSize = winrt::Windows::Foundation::Numerics::float2(-1.f, -1.f);
 
     std::optional<winrt::Microsoft::Graphics::Canvas::CanvasBitmap> mBackgroundImage;
     int mOriginalWidth, mOriginalHeight;
     std::string mContentMode;
+
+    std::vector<CanvasText*> mArrCanvasText;
+    std::vector<CanvasText*> mArrTextOnSketch;
+    std::vector<CanvasText*> mArrSketchOnText;
 
     IAsyncOperation<winrt::hstring> saveHelper(std::string format, std::string folder, std::string filename, bool transparent, bool includeImage, bool includeText, bool cropToImageSize);
 
@@ -65,6 +82,8 @@ namespace winrt::RNSketchCanvas::implementation
     void OnCanvasSizeChanged(const winrt::Windows::Foundation::IInspectable, Windows::UI::Xaml::SizeChangedEventArgs const&);
     Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl::Draw_revoker mCanvasDrawRevoker{};
     Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl::SizeChanged_revoker mCanvaSizeChangedRevoker{};
+
+    void setCanvasText(Microsoft::ReactNative::JSValueArray const& aText);
 
     void onSaved(bool success, std::string path);
 

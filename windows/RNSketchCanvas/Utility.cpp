@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Utility.h"
+#include <sstream>
 
 namespace winrt::RNSketchCanvas::implementation
 {
@@ -43,6 +44,18 @@ namespace winrt::RNSketchCanvas::implementation
       float h = imgHeight * scaleFactor;
       return Windows::Foundation::Rect((targetWidth - w) / 2, (targetHeight - h) / 2, w, h);
     }
+  }
+
+  std::vector<std::string> Utility::splitLines(std::string input)
+  {
+    std::stringstream ss(input);
+    std::vector<std::string> result;
+    std::string line;
+    while (std::getline(ss, line, '\n'))
+    {
+      result.push_back(line);
+    }
+    return result;
   }
 
 }

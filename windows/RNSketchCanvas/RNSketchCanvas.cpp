@@ -19,6 +19,7 @@ namespace winrt
   using namespace Windows::UI::Xaml::Input;
   using namespace Windows::UI::Xaml::Media;
   using namespace Microsoft::Graphics::Canvas;
+  using namespace Microsoft::Graphics::Canvas::Text;
   using namespace Microsoft::Graphics::Canvas::UI::Xaml;
 } // namespace winrt
 
@@ -142,7 +143,7 @@ namespace winrt::RNSketchCanvas::implementation
       {
         if (propertyValue != nullptr)
         {
-          //this->setCanvasText(propertyValue.AsString());
+          this->setCanvasText(propertyValue.AsArray());
         }
       }
     }
@@ -169,7 +170,7 @@ namespace winrt::RNSketchCanvas::implementation
   {
     return [](winrt::IJSValueWriter const& constantWriter)
     {
-      // NOTE: A bubbling event might be more approppriate here?
+      // NOTE: A bubbling event might be more appropriate here?
       WriteCustomDirectEventTypeConstant(constantWriter, "onChange", "onChange");
     };
   }
@@ -428,6 +429,17 @@ namespace winrt::RNSketchCanvas::implementation
       );
     }
 
+    for (CanvasText* text : mArrSketchOnText)
+    {
+      args.DrawingSession().DrawText(
+        winrt::to_hstring(text->text),
+        text->drawPosition.x + text->lineOffset.x,
+        text->drawPosition.y + text->lineOffset.y,
+        text->color,
+        text->paint
+      );
+    }
+
     if (mDrawingCanvas.has_value())
     {
       args.DrawingSession().DrawImage(mDrawingCanvas.value());
@@ -435,6 +447,17 @@ namespace winrt::RNSketchCanvas::implementation
     if (mTranslucentDrawingCanvas.has_value() && mCurrentPath != nullptr && mCurrentPath->isTranslucent)
     {
       args.DrawingSession().DrawImage(mTranslucentDrawingCanvas.value());
+    }
+    
+    for (CanvasText* text : mArrTextOnSketch)
+    {
+      args.DrawingSession().DrawText(
+        winrt::to_hstring(text->text),
+        text->drawPosition.x + text->lineOffset.x,
+        text->drawPosition.y + text->lineOffset.y,
+        text->color,
+        text->paint
+      );
     }
 
   }
@@ -453,9 +476,116 @@ namespace winrt::RNSketchCanvas::implementation
         auto session = mTranslucentDrawingCanvas.value().CreateDrawingSession();
         session.Clear(Colors::Transparent());
       }
+
+      for (CanvasText* text : mArrCanvasText)
+      {
+        float2 position = float2(text->position.x, text->position.y);
+        if (!text->isAbsoluteCoordinate)
+        {
+          position.x *= newSize.Width;
+          position.y *= newSize.Height;
+        }
+        position.x -= text->textBounds.X;
+        position.y -= text->textBounds.Y;
+        position.x -= (text->textBounds.Width * text->anchor.x);
+        position.y -= (text->height * text->anchor.y);
+        text->drawPosition = position;
+      }
+
       mNeedsFullRedraw = true;
       mCanvasControl.Invalidate();
     }
+  }
+
+  void RNSketchCanvasView::setCanvasText(JSValueArray const& aText)
+  {
+    for (CanvasText* data : mArrCanvasText)
+    {
+      delete data;
+    }
+
+    mArrCanvasText.clear();
+    mArrSketchOnText.clear();
+    mArrTextOnSketch.clear();
+
+    for (int i = 0; i < aText.size(); i++)
+    {
+      JSValueObject const& property = aText[i].AsObject();
+      if (property.find("text") != property.end())
+      {
+        std::string alignment = property.find("alignment") != property.end() ? property["alignment"].AsString() : "Left";
+        int lineOffset = 0, maxTextWidth = 0;
+        std::vector<std::string> lines = Utility::splitLines(property["text"].AsString());
+        std::vector<CanvasText*> textSet;
+        for (auto const& line : lines)
+        {
+          std::vector<CanvasText*> & arr = property.find("overlay") != property.end() && property["overlay"].AsString() == "TextOnSketch" ? mArrTextOnSketch : mArrSketchOnText;
+          CanvasText* text = new CanvasText();
+          text->paint.HorizontalAlignment(CanvasHorizontalAlignment::Left);
+          text->text = line;
+          if (property.find("font") != property.end())
+          {
+            text->paint.FontFamily(winrt::to_hstring(property["font"].AsString()));
+          }
+          text->paint.FontSize(property.find("fontSize") != property.end() ? property["fontSize"].AsSingle() : 12.0f);
+          text->paint.WordWrapping(CanvasWordWrapping::NoWrap);
+          text->paint.LastLineWrapping(false);
+          text->color = property.find("fontColor") != property.end() ? Utility::uint32ToColor(property["fontColor"].AsInt32()) : Colors::Black();
+          text->anchor = property.find("anchor") != property.end() ? float2(property["anchor"].AsObject()["x"].AsSingle(), property["anchor"].AsObject()["y"].AsSingle()) : float2(.0f, .0f);
+          text->position = property.find("position") != property.end() ? float2(property["position"].AsObject()["x"].AsSingle(), property["position"].AsObject()["y"].AsSingle()) : float2(.0f, .0f);
+          text->isAbsoluteCoordinate = !(property.find("coordinate") != property.end() && property["coordinate"].AsString() == "Ratio");
+          CanvasTextLayout boundsLayout = CanvasTextLayout(CanvasDevice::GetSharedDevice(), winrt::to_hstring(line), text->paint, 0, 0);
+          text->textBounds = Rect(boundsLayout.LayoutBounds().X, boundsLayout.LayoutBounds().Y, boundsLayout.LayoutBounds().Width, boundsLayout.LayoutBounds().Height);
+          text->lineOffset = float2(0, lineOffset);
+          lineOffset += text->textBounds.Height * (property.find("lineHeightMultiple") != property.end() ? property["lineHeightMultiple"].AsSingle() : 1.f);
+          maxTextWidth = max(maxTextWidth, text->textBounds.Width);
+          arr.push_back(text);
+          mArrCanvasText.push_back(text);
+          textSet.push_back(text);
+        }
+        for (auto& text : textSet)
+        {
+          text->height = lineOffset;
+          if (text->textBounds.Width < maxTextWidth)
+          {
+            float diff = maxTextWidth - text->textBounds.Width;
+            text->textBounds.X += diff * text->anchor.x;
+          }
+        }
+        if (mCanvasControl.ActualWidth() > 0 && mCanvasControl.ActualHeight() > 0)
+        {
+          for (CanvasText* text : textSet)
+          {
+            text->height = lineOffset;
+            float2 position = float2(text->position.x, text->position.y);
+            if (!text->isAbsoluteCoordinate)
+            {
+              position.x *= mCanvasControl.ActualWidth();
+              position.y *= mCanvasControl.ActualHeight();
+            }
+            position.x -= text->textBounds.X;
+            position.y -= text->textBounds.Y;
+            position.x -= (text->textBounds.Width * text->anchor.x);
+            position.y -= (text->height * text->anchor.y);
+            text->drawPosition = position;
+          }
+        }
+        if (lines.size() > 1)
+        {
+          for (CanvasText* text : textSet)
+          {
+            if (alignment == "Right")
+            {
+              text->lineOffset.x = (maxTextWidth - text->textBounds.Width);
+            } else if (alignment == "Center")
+            {
+              text->lineOffset.x = (maxTextWidth - text->textBounds.Width) / 2;
+            }
+          }
+        }
+      }
+    }
+    invalidateCanvas(false);
   }
 
   void RNSketchCanvasView::onSaved(bool success, std::string path)
@@ -530,7 +660,16 @@ namespace winrt::RNSketchCanvas::implementation
 
       if (includeText)
       {
-        //TODO
+        for (CanvasText* text : mArrSketchOnText)
+        {
+          session.DrawText(
+            winrt::to_hstring(text->text),
+            text->drawPosition.x + text->lineOffset.x,
+            text->drawPosition.y + text->lineOffset.y,
+            text->color,
+            text->paint
+          );
+        }
       }
 
       if (mBackgroundImage.has_value() && cropToImageSize)
@@ -552,7 +691,16 @@ namespace winrt::RNSketchCanvas::implementation
 
       if (includeText)
       {
-        //TODO
+        for (CanvasText* text : mArrTextOnSketch)
+        {
+          session.DrawText(
+            winrt::to_hstring(text->text),
+            text->drawPosition.x + text->lineOffset.x,
+            text->drawPosition.y + text->lineOffset.y,
+            text->color,
+            text->paint
+          );
+        }
       }
 
     }
