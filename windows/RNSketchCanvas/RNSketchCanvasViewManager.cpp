@@ -24,7 +24,7 @@ namespace winrt::RNSketchCanvas::implementation
 
   winrt::FrameworkElement RNSketchCanvasViewManager::CreateView() noexcept
   {
-    return winrt::RNSketchCanvas::RNSketchCanvasModule(m_reactContext);
+    return winrt::RNSketchCanvas::RNSketchCanvasView(m_reactContext);
   }
 
   // IViewManagerWithReactContext
@@ -41,37 +41,37 @@ namespace winrt::RNSketchCanvas::implementation
   // IViewManagerWithNativeProperties
   IMapView<hstring, ViewManagerPropertyType> RNSketchCanvasViewManager::NativeProps() noexcept
   {
-    return winrt::RNSketchCanvas::implementation::RNSketchCanvasModule::NativeProps();
+    return winrt::RNSketchCanvas::implementation::RNSketchCanvasView::NativeProps();
   }
 
   void RNSketchCanvasViewManager::UpdateProperties(
     FrameworkElement const& view,
     IJSValueReader const& propertyMapReader) noexcept
   {
-    if (auto module = view.try_as<winrt::RNSketchCanvas::RNSketchCanvasModule>())
+    if (auto module = view.try_as<winrt::RNSketchCanvas::RNSketchCanvasView>())
     {
       module.UpdateProperties(propertyMapReader);
     }
   }
   winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasViewManager::ExportedViewConstants() noexcept
   {
-    return winrt::RNSketchCanvas::implementation::RNSketchCanvasModule::ExportedViewConstants();
+    return winrt::RNSketchCanvas::implementation::RNSketchCanvasView::ExportedViewConstants();
   }
   // IViewManagerWithExportedEventTypeConstants
   ConstantProviderDelegate RNSketchCanvasViewManager::ExportedCustomBubblingEventTypeConstants() noexcept
   {
-    return winrt::RNSketchCanvas::implementation::RNSketchCanvasModule::ExportedCustomBubblingEventTypeConstants();
+    return winrt::RNSketchCanvas::implementation::RNSketchCanvasView::ExportedCustomBubblingEventTypeConstants();
   }
 
   ConstantProviderDelegate RNSketchCanvasViewManager::ExportedCustomDirectEventTypeConstants() noexcept
   {
-    return winrt::RNSketchCanvas::implementation::RNSketchCanvasModule::ExportedCustomDirectEventTypeConstants();
+    return winrt::RNSketchCanvas::implementation::RNSketchCanvasView::ExportedCustomDirectEventTypeConstants();
   }
 
   // IViewManagerWithCommands
   IVectorView<hstring> RNSketchCanvasViewManager::Commands() noexcept
   {
-    return winrt::RNSketchCanvas::implementation::RNSketchCanvasModule::Commands();
+    return winrt::RNSketchCanvas::implementation::RNSketchCanvasView::Commands();
   }
 
   void RNSketchCanvasViewManager::DispatchCommand(
@@ -79,7 +79,7 @@ namespace winrt::RNSketchCanvas::implementation
     winrt::hstring const& commandId,
     winrt::IJSValueReader const& commandArgsReader) noexcept
   {
-    if (auto module = view.try_as<winrt::RNSketchCanvas::RNSketchCanvasModule>())
+    if (auto module = view.try_as<winrt::RNSketchCanvas::RNSketchCanvasView>())
     {
       module.DispatchCommand(commandId, commandArgsReader);
     }

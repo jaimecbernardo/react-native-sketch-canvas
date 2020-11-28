@@ -2,20 +2,22 @@
 #include "JSValueXaml.h"
 #include "RNSketchCanvas.h"
 #include "Utility.h"
-#include "RNSketchCanvasModule.g.cpp"
+#include "RNSketchCanvasView.g.cpp"
+#include <system_error>
 
 namespace winrt
 {
   using namespace Microsoft::ReactNative;
   using namespace Windows::Data::Json;
   using namespace Windows::Foundation;
+  using namespace Windows::Foundation::Numerics;
+  using namespace Windows::Storage;
   using namespace Windows::UI;
   using namespace Windows::UI::Popups;
   using namespace Windows::UI::Xaml;
   using namespace Windows::UI::Xaml::Controls;
   using namespace Windows::UI::Xaml::Input;
   using namespace Windows::UI::Xaml::Media;
-  using namespace Windows::Foundation::Numerics;
   using namespace Microsoft::Graphics::Canvas;
   using namespace Microsoft::Graphics::Canvas::UI::Xaml;
 } // namespace winrt
@@ -23,15 +25,15 @@ namespace winrt
 namespace winrt::RNSketchCanvas::implementation
 {
 
-  RNSketchCanvasModule::RNSketchCanvasModule(winrt::IReactContext const& reactContext) : m_reactContext(reactContext)
+  RNSketchCanvasView::RNSketchCanvasView(winrt::IReactContext const& reactContext) : m_reactContext(reactContext)
   {
     // Sets a Transparent background so that it receives mouse events in the JavaScript side.
     mCanvasControl = Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl();
     this->Children().Append(mCanvasControl);
     mCanvasControl.Background(SolidColorBrush(Colors::Transparent()));
     // TODO: event tokens from these. Or use the revokers.
-    mCanvasDrawRevoker = mCanvasControl.Draw(winrt::auto_revoke, { get_weak(), &RNSketchCanvasModule::OnCanvasDraw });
-    mCanvaSizeChangedRevoker = mCanvasControl.SizeChanged(winrt::auto_revoke, { get_weak(), &RNSketchCanvasModule::OnCanvasSizeChanged });
+    mCanvasDrawRevoker = mCanvasControl.Draw(winrt::auto_revoke, { get_weak(), &RNSketchCanvasView::OnCanvasDraw });
+    mCanvaSizeChangedRevoker = mCanvasControl.SizeChanged(winrt::auto_revoke, { get_weak(), &RNSketchCanvasView::OnCanvasSizeChanged });
 
     // TODO: hook up events from the controll
     /*m_textChangedRevoker = this->TextChanged(winrt::auto_revoke,
@@ -42,7 +44,7 @@ namespace winrt::RNSketchCanvas::implementation
     });*/
   }
 
-  void RNSketchCanvasModule::openImageFile(std::string filename, std::string directory, std::string mode)
+  void RNSketchCanvasView::openImageFile(std::string filename, std::string directory, std::string mode)
   {
     if (!filename.empty())
     {
@@ -99,7 +101,7 @@ namespace winrt::RNSketchCanvas::implementation
     }
   }
 
-  void RNSketchCanvasModule::OnTextChanged(winrt::Windows::Foundation::IInspectable const&,
+  void RNSketchCanvasView::OnTextChanged(winrt::Windows::Foundation::IInspectable const&,
     winrt::Windows::UI::Xaml::Controls::TextChangedEventArgs const&)
   {
     // TODO: example sending event on text changed
@@ -117,7 +119,7 @@ namespace winrt::RNSketchCanvas::implementation
 
   winrt::Windows::Foundation::Collections::
     IMapView<winrt::hstring, winrt::Microsoft::ReactNative::ViewManagerPropertyType>
-    RNSketchCanvasModule::NativeProps() noexcept
+    RNSketchCanvasView::NativeProps() noexcept
   {
     auto nativeProps = winrt::single_threaded_map<hstring, ViewManagerPropertyType>();
     nativeProps.Insert(L"localSourceImage", ViewManagerPropertyType::Map);
@@ -125,7 +127,7 @@ namespace winrt::RNSketchCanvas::implementation
     return nativeProps.GetView();
   }
 
-  void RNSketchCanvasModule::UpdateProperties(winrt::Microsoft::ReactNative::IJSValueReader const& propertyMapReader) noexcept
+  void RNSketchCanvasView::UpdateProperties(winrt::Microsoft::ReactNative::IJSValueReader const& propertyMapReader) noexcept
   {
     const JSValueObject& propertyMap = JSValue::ReadObjectFrom(propertyMapReader);
     for (auto const& pair : propertyMap)
@@ -169,24 +171,24 @@ namespace winrt::RNSketchCanvas::implementation
     }
   }
 
-  winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasModule::ExportedViewConstants() noexcept
+  winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasView::ExportedViewConstants() noexcept
   {
     return [](winrt::Microsoft::ReactNative::IJSValueWriter const& constantWriter)
     {
       WriteProperty(constantWriter, L"MainBundlePath", L"ms-appx:///");
-      WriteProperty(constantWriter, L"NSCachesDirectory", Windows::Storage::ApplicationData::Current().LocalCacheFolder().Path());
+      WriteProperty(constantWriter, L"NSCachesDirectory", ApplicationData::Current().LocalCacheFolder().Path());
       WriteProperty(constantWriter, L"TemporaryDirectory", L"ms-appdata:///temp");
       WriteProperty(constantWriter, L"RoamingDirectory", L"ms-appdata:///roaming");
       WriteProperty(constantWriter, L"LocalDirectory", L"ms-appdata:///local");
     };
   }
 
-  winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasModule::ExportedCustomBubblingEventTypeConstants() noexcept
+  winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasView::ExportedCustomBubblingEventTypeConstants() noexcept
   {
     return nullptr;
   }
 
-  winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasModule::ExportedCustomDirectEventTypeConstants() noexcept
+  winrt::Microsoft::ReactNative::ConstantProviderDelegate RNSketchCanvasView::ExportedCustomDirectEventTypeConstants() noexcept
   {
     return [](winrt::IJSValueWriter const& constantWriter)
     {
@@ -195,7 +197,7 @@ namespace winrt::RNSketchCanvas::implementation
     };
   }
 
-  winrt::Windows::Foundation::Collections::IVectorView<winrt::hstring> RNSketchCanvasModule::Commands() noexcept
+  winrt::Windows::Foundation::Collections::IVectorView<winrt::hstring> RNSketchCanvasView::Commands() noexcept
   {
     auto commands = winrt::single_threaded_vector<hstring>();
     commands.Append(L"addPoint");
@@ -208,7 +210,7 @@ namespace winrt::RNSketchCanvas::implementation
     return commands.GetView();
   }
 
-  void RNSketchCanvasModule::DispatchCommand(winrt::hstring const& commandId, winrt::Microsoft::ReactNative::IJSValueReader const& commandArgsReader) noexcept
+  void RNSketchCanvasView::DispatchCommand(winrt::hstring const& commandId, winrt::Microsoft::ReactNative::IJSValueReader const& commandArgsReader) noexcept
   {
     // TODO: handle commands here
     auto commandArgs = JSValue::ReadArrayFrom(commandArgsReader);
@@ -240,12 +242,23 @@ namespace winrt::RNSketchCanvas::implementation
     } else if (commandId == L"deletePath")
     {
       this->deletePath(commandArgs[0].AsInt32());
+    } else if (commandId == L"save")
+    {
+      this->save(
+        commandArgs[0].AsString(),
+        commandArgs[1].AsString(),
+        commandArgs[2].AsString(),
+        commandArgs[3].AsBoolean(),
+        commandArgs[4].AsBoolean(),
+        commandArgs[5].AsBoolean(),
+        commandArgs[6].AsBoolean()
+      );
     } else if (commandId == L"endPath")
     {
       this->end();
     }
   }
-  void RNSketchCanvasModule::clear()
+  void RNSketchCanvasView::clear()
   {
     for (SketchData* data : mPaths)
     {
@@ -256,7 +269,7 @@ namespace winrt::RNSketchCanvas::implementation
     mNeedsFullRedraw = true;
     mCanvasControl.Invalidate();
   }
-  void RNSketchCanvasModule::newPath(int32_t id, uint32_t strokeColor, float strokeWidth)
+  void RNSketchCanvasView::newPath(int32_t id, uint32_t strokeColor, float strokeWidth)
   {
     Color color = Utility::uint32ToColor(strokeColor);
     mCurrentPath = new SketchData(id, color, strokeWidth);
@@ -265,7 +278,7 @@ namespace winrt::RNSketchCanvas::implementation
     mCanvasControl.Invalidate();
   }
 
-  void RNSketchCanvasModule::addPoint(float x, float y)
+  void RNSketchCanvasView::addPoint(float x, float y)
   {
     Rect updateRect = mCurrentPath->addPoint(Point(x, y));
     if (mCurrentPath->isTranslucent)
@@ -280,7 +293,7 @@ namespace winrt::RNSketchCanvas::implementation
     }
     mCanvasControl.Invalidate();
   }
-  void RNSketchCanvasModule::addPath(int32_t id, uint32_t strokeColor, float strokeWidth, std::vector<float2> points)
+  void RNSketchCanvasView::addPath(int32_t id, uint32_t strokeColor, float strokeWidth, std::vector<float2> points)
   {
     bool exist = false;
     for (SketchData* data : mPaths)
@@ -301,7 +314,7 @@ namespace winrt::RNSketchCanvas::implementation
       mCanvasControl.Invalidate();
     }
   }
-  void RNSketchCanvasModule::deletePath(int32_t id)
+  void RNSketchCanvasView::deletePath(int32_t id)
   {
     int index = -1;
     for (unsigned int i = 0; i < mPaths.size(); i++)
@@ -321,7 +334,7 @@ namespace winrt::RNSketchCanvas::implementation
       mCanvasControl.Invalidate();
     }
   }
-  void RNSketchCanvasModule::end()
+  void RNSketchCanvasView::end()
   {
     if (mCurrentPath != nullptr)
     {
@@ -339,7 +352,77 @@ namespace winrt::RNSketchCanvas::implementation
       mCurrentPath = nullptr;
     }
   }
-  void RNSketchCanvasModule::OnCanvasDraw(CanvasControl const& canvas, CanvasDrawEventArgs const& args)
+
+  IAsyncOperation<winrt::hstring> RNSketchCanvasView::saveHelper(std::string format, std::string folder, std::string filename, bool transparent, bool includeImage, bool includeText, bool cropToImageSize)
+  {
+    // Saving in Pictures requires the application having the picturesLibrary capability.
+    StorageFolder picsRoot = KnownFolders::PicturesLibrary();
+    StorageFolder targetSaveFolder = picsRoot;
+    bool try_to_create_folders = false;
+    try
+    {
+      targetSaveFolder = co_await picsRoot.GetFolderAsync(winrt::to_hstring(folder));
+    } catch (...)
+    {
+      // Try to create folders.
+      try_to_create_folders = true;
+    }
+    if (try_to_create_folders)
+    {
+      targetSaveFolder = co_await picsRoot.CreateFolderAsync(winrt::to_hstring(folder));
+    }
+    StorageFile file = co_await targetSaveFolder.CreateFileAsync(winrt::to_hstring(filename + (format=="png"?".png":".jpg" )), CreationCollisionOption::ReplaceExisting);
+
+    CanvasBitmap bitmap = createImage(format == "png" && transparent, includeImage, includeText, cropToImageSize);
+
+    auto transactionStream = co_await file.OpenTransactedWriteAsync();
+
+    co_await bitmap.SaveAsync(
+      transactionStream.Stream(),
+      format == "png" ? CanvasBitmapFileFormat::Png : CanvasBitmapFileFormat::Jpeg,
+      format == "png" ? 1.0f : 0.9f
+    );
+    co_await transactionStream.CommitAsync();
+    return file.Path();
+  }
+
+  void RNSketchCanvasView::save(std::string format, std::string folder, std::string filename, bool transparent, bool includeImage, bool includeText, bool cropToImageSize)
+  {
+    IAsyncOperation<winrt::hstring> asyncSave = saveHelper(format, folder, filename, transparent, includeImage, includeText, cropToImageSize);
+
+    asyncSave.Completed([=](IAsyncOperation<winrt::hstring> const& sender, AsyncStatus const asyncStatus)
+      {
+        if (asyncStatus == AsyncStatus::Error)
+        {
+          std::string error = "HRESULT " + std::to_string(sender.ErrorCode()) + ": " + std::system_category().message(sender.ErrorCode());
+          //TODO onSaved
+        } else if (asyncStatus == AsyncStatus::Completed)
+        {
+          //TODO onSaved
+        }
+      }
+    );
+
+  }
+
+  IAsyncOperation<winrt::hstring> RNSketchCanvasView::getBase64(std::string format, bool transparent, bool includeImage, bool includeText, bool cropToImageSize)
+  {
+    CanvasBitmap bitmap = createImage(format == "png" && transparent, includeImage, includeText, cropToImageSize);
+
+    Streams::InMemoryRandomAccessStream stream;
+
+    co_await bitmap.SaveAsync(
+      stream,
+      format == "png" ? CanvasBitmapFileFormat::Png : CanvasBitmapFileFormat::Jpeg,
+      format == "png" ? 1.0f : 0.9f
+    );
+    
+    Streams::Buffer buffer(stream.Size());
+    Streams::IBuffer readbuffer = co_await stream.ReadAsync(buffer, stream.Size(), Streams::InputStreamOptions::None);
+
+    return Windows::Security::Cryptography::CryptographicBuffer::EncodeToBase64String(readbuffer);
+  }
+  void RNSketchCanvasView::OnCanvasDraw(CanvasControl const& canvas, CanvasDrawEventArgs const& args)
   {
     if (mNeedsFullRedraw && mDrawingCanvas.has_value())
     {
@@ -376,7 +459,7 @@ namespace winrt::RNSketchCanvas::implementation
     }
 
   }
-  void RNSketchCanvasModule::OnCanvasSizeChanged(const IInspectable canvas, Windows::UI::Xaml::SizeChangedEventArgs const& args)
+  void RNSketchCanvasView::OnCanvasSizeChanged(const IInspectable canvas, Windows::UI::Xaml::SizeChangedEventArgs const& args)
   {
     Size newSize = args.NewSize();
     if (newSize.Width >= 0 && newSize.Height >= 0)
@@ -394,6 +477,64 @@ namespace winrt::RNSketchCanvas::implementation
       mNeedsFullRedraw = true;
       mCanvasControl.Invalidate();
     }
+  }
+
+  Microsoft::Graphics::Canvas::CanvasBitmap RNSketchCanvasView::createImage(bool transparent, bool includeImage, bool includeText, bool cropToImageSize)
+  {
+    CanvasRenderTarget canvas = CanvasRenderTarget(
+      CanvasDevice::GetSharedDevice(),
+      mBackgroundImage.has_value() && cropToImageSize ? mOriginalWidth : mCanvasControl.ActualWidth(),
+      mBackgroundImage.has_value() && cropToImageSize ? mOriginalHeight : mCanvasControl.ActualHeight(),
+      mCanvasControl.Dpi()
+    );
+    {
+      auto session = canvas.CreateDrawingSession();
+      session.Clear(transparent ? Colors::Transparent() : Colors::White());
+
+      if (mBackgroundImage.has_value() && includeImage)
+      {
+        session.DrawImage(
+          mBackgroundImage.value(),
+          Utility::fillImage(
+            mBackgroundImage.value().SizeInPixels().Width,
+            mBackgroundImage.value().SizeInPixels().Height,
+            canvas.SizeInPixels().Width,
+            canvas.SizeInPixels().Height,
+            "AspectFit"
+          )
+        );
+      }
+
+      if (includeText)
+      {
+        //TODO
+      }
+
+      if (mBackgroundImage.has_value() && cropToImageSize)
+      {
+        session.DrawImage(
+          mDrawingCanvas.value(),
+          Utility::fillImage(
+            mDrawingCanvas.value().SizeInPixels().Width,
+            mDrawingCanvas.value().SizeInPixels().Height,
+            canvas.SizeInPixels().Width,
+            canvas.SizeInPixels().Height,
+            "AspectFill"
+          )
+        );
+      } else
+      {
+        session.DrawImage(mDrawingCanvas.value());
+      }
+
+      if (includeText)
+      {
+        //TODO
+      }
+
+    }
+    
+    return canvas;
   }
 
 }
