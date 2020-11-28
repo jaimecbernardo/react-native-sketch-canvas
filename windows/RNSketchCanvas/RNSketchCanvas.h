@@ -60,16 +60,15 @@ namespace winrt::RNSketchCanvas::implementation
 
     IAsyncOperation<winrt::hstring> saveHelper(std::string format, std::string folder, std::string filename, bool transparent, bool includeImage, bool includeText, bool cropToImageSize);
 
-    void OnTextChanged(winrt::Windows::Foundation::IInspectable const& sender,
-      winrt::Windows::UI::Xaml::Controls::TextChangedEventArgs const& args);
-    winrt::Windows::UI::Xaml::Controls::TextBox::TextChanged_revoker m_textChangedRevoker{};
-
     Microsoft::ReactNative::IReactContext m_reactContext{ nullptr };
     void OnCanvasDraw(Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl const&, Microsoft::Graphics::Canvas::UI::Xaml::CanvasDrawEventArgs const&);
     void OnCanvasSizeChanged(const winrt::Windows::Foundation::IInspectable, Windows::UI::Xaml::SizeChangedEventArgs const&);
     Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl::Draw_revoker mCanvasDrawRevoker{};
     Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl::SizeChanged_revoker mCanvaSizeChangedRevoker{};
 
+    void onSaved(bool success, std::string path);
+
+    void invalidateCanvas(bool shouldDispatchEvent);
     Microsoft::Graphics::Canvas::CanvasBitmap createImage(bool transparent, bool includeImage, bool includeText, bool cropToImageSize);
   };
 }

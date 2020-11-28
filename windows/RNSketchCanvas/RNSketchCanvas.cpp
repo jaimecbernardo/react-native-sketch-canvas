@@ -35,13 +35,6 @@ namespace winrt::RNSketchCanvas::implementation
     mCanvasDrawRevoker = mCanvasControl.Draw(winrt::auto_revoke, { get_weak(), &RNSketchCanvasView::OnCanvasDraw });
     mCanvaSizeChangedRevoker = mCanvasControl.SizeChanged(winrt::auto_revoke, { get_weak(), &RNSketchCanvasView::OnCanvasSizeChanged });
 
-    // TODO: hook up events from the controll
-    /*m_textChangedRevoker = this->TextChanged(winrt::auto_revoke,
-        [ref = get_weak()](auto const& sender, auto const& args) {
-        if (auto self = ref.get()) {
-            self->OnTextChanged(sender, args);
-        }
-    });*/
   }
 
   void RNSketchCanvasView::openImageFile(std::string filename, std::string directory, std::string mode)
@@ -89,7 +82,7 @@ namespace winrt::RNSketchCanvas::implementation
                   mOriginalWidth = mBackgroundImage.value().SizeInPixels().Width;
                   mOriginalHeight = mBackgroundImage.value().SizeInPixels().Height;
                   mContentMode = mode;
-                  mCanvasControl.Invalidate();
+                  invalidateCanvas(true);
                 }
               );
             }
@@ -99,22 +92,6 @@ namespace winrt::RNSketchCanvas::implementation
       {
       }
     }
-  }
-
-  void RNSketchCanvasView::OnTextChanged(winrt::Windows::Foundation::IInspectable const&,
-    winrt::Windows::UI::Xaml::Controls::TextChangedEventArgs const&)
-  {
-    // TODO: example sending event on text changed
-   /* auto text = this->Text();
-    m_reactContext.DispatchEvent(
-      *this,
-      L"sampleEvent",
-      [&](winrt::Microsoft::ReactNative::IJSValueWriter const& eventDataWriter) noexcept {
-        eventDataWriter.WriteObjectBegin();
-        WriteProperty(eventDataWriter, L"text", text);
-        eventDataWriter.WriteObjectEnd();
-      }
-    );*/
   }
 
   winrt::Windows::Foundation::Collections::
@@ -192,8 +169,8 @@ namespace winrt::RNSketchCanvas::implementation
   {
     return [](winrt::IJSValueWriter const& constantWriter)
     {
-      // TODO: define events emitted by the control
-      WriteCustomDirectEventTypeConstant(constantWriter, "sampleEvent");
+      // NOTE: A bubbling event might be more approppriate here?
+      WriteCustomDirectEventTypeConstant(constantWriter, "onChange", "onChange");
     };
   }
 
@@ -267,15 +244,17 @@ namespace winrt::RNSketchCanvas::implementation
     mPaths.clear();
     mCurrentPath = nullptr;
     mNeedsFullRedraw = true;
-    mCanvasControl.Invalidate();
+    invalidateCanvas(true);
   }
   void RNSketchCanvasView::newPath(int32_t id, uint32_t strokeColor, float strokeWidth)
   {
     Color color = Utility::uint32ToColor(strokeColor);
     mCurrentPath = new SketchData(id, color, strokeWidth);
     mPaths.push_back(mCurrentPath);
-    //is Erase, do we need to disable hardware acceleration? through ForceSoftwareRenderer
-    mCanvasControl.Invalidate();
+    // On Android, hardware acceleration is disabled when erasing here.
+    // Looks like it could be done through ForceSoftwareRenderer.
+    // So far, I couldn't find a reason to do it on Windows.
+    invalidateCanvas(true);
   }
 
   void RNSketchCanvasView::addPoint(float x, float y)
@@ -311,7 +290,7 @@ namespace winrt::RNSketchCanvas::implementation
         auto session = mDrawingCanvas.value().CreateDrawingSession();
         newPath->draw(session);
       }
-      mCanvasControl.Invalidate();
+      invalidateCanvas(true);
     }
   }
   void RNSketchCanvasView::deletePath(int32_t id)
@@ -331,7 +310,7 @@ namespace winrt::RNSketchCanvas::implementation
       mPaths.erase(mPaths.begin() + index);
       delete path;
       mNeedsFullRedraw = true;
-      mCanvasControl.Invalidate();
+      invalidateCanvas(true);
     }
   }
   void RNSketchCanvasView::end()
@@ -394,11 +373,11 @@ namespace winrt::RNSketchCanvas::implementation
       {
         if (asyncStatus == AsyncStatus::Error)
         {
-          std::string error = "HRESULT " + std::to_string(sender.ErrorCode()) + ": " + std::system_category().message(sender.ErrorCode());
-          //TODO onSaved
+          //std::string error = "HRESULT " + std::to_string(sender.ErrorCode()) + ": " + std::system_category().message(sender.ErrorCode());
+          onSaved(false, "");
         } else if (asyncStatus == AsyncStatus::Completed)
         {
-          //TODO onSaved
+          onSaved(true, winrt::to_string(sender.GetResults()));
         }
       }
     );
@@ -477,6 +456,50 @@ namespace winrt::RNSketchCanvas::implementation
       mNeedsFullRedraw = true;
       mCanvasControl.Invalidate();
     }
+  }
+
+  void RNSketchCanvasView::onSaved(bool success, std::string path)
+  {
+    auto control = this->get_strong().try_as<winrt::FrameworkElement>();
+    bool local_success = success;
+    std::string local_path = path;
+    m_reactContext.DispatchEvent(
+      control,
+      L"onChange",
+      [&](winrt::Microsoft::ReactNative::IJSValueWriter const& eventDataWriter) noexcept
+      {
+        eventDataWriter.WriteObjectBegin();
+        WriteProperty(eventDataWriter, L"success", local_success);
+        if (local_path.empty())
+        {
+          WriteProperty(eventDataWriter, L"path", nullptr);
+        } else
+        {
+          WriteProperty(eventDataWriter, L"path", local_path);
+        }
+        eventDataWriter.WriteObjectEnd();
+      }
+    );
+  }
+
+  void RNSketchCanvasView::invalidateCanvas(bool shouldDispatchEvent)
+  {
+    if (shouldDispatchEvent)
+    {
+      auto control = this->get_strong().try_as<winrt::FrameworkElement>();
+      auto pathsSize = mPaths.size();
+      m_reactContext.DispatchEvent(
+        control,
+        L"onChange",
+        [&](winrt::Microsoft::ReactNative::IJSValueWriter const& eventDataWriter) noexcept
+        {
+          eventDataWriter.WriteObjectBegin();
+          WriteProperty(eventDataWriter, L"pathsUpdate", pathsSize);
+          eventDataWriter.WriteObjectEnd();
+        }
+      );
+    }
+    mCanvasControl.Invalidate();
   }
 
   Microsoft::Graphics::Canvas::CanvasBitmap RNSketchCanvasView::createImage(bool transparent, bool includeImage, bool includeText, bool cropToImageSize)
