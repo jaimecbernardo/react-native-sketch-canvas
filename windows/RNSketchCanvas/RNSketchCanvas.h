@@ -58,8 +58,8 @@ namespace winrt::RNSketchCanvas::implementation
     IAsyncOperation<winrt::hstring> getBase64(std::string format, bool transparent, bool includeImage, bool includeText, bool cropToImageSize);
 
   private:
-    std::vector<SketchData*> mPaths;
-    SketchData* mCurrentPath = nullptr;
+    std::vector<std::shared_ptr<SketchData>> mPaths;
+    std::shared_ptr<SketchData> mCurrentPath = nullptr;
 
     Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl mCanvasControl;
 
@@ -71,9 +71,9 @@ namespace winrt::RNSketchCanvas::implementation
     int mOriginalWidth, mOriginalHeight;
     std::string mContentMode;
 
-    std::vector<CanvasText*> mArrCanvasText;
-    std::vector<CanvasText*> mArrTextOnSketch;
-    std::vector<CanvasText*> mArrSketchOnText;
+    std::vector<std::shared_ptr<CanvasText>> mArrCanvasText;
+    std::vector<std::shared_ptr<CanvasText>> mArrTextOnSketch;
+    std::vector<std::shared_ptr<CanvasText>> mArrSketchOnText;
 
     IAsyncOperation<winrt::hstring> saveHelper(std::string format, std::string folder, std::string filename, bool transparent, bool includeImage, bool includeText, bool cropToImageSize);
 

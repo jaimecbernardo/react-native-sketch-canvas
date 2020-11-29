@@ -238,10 +238,6 @@ namespace winrt::RNSketchCanvas::implementation
   }
   void RNSketchCanvasView::clear()
   {
-    for (SketchData* data : mPaths)
-    {
-      delete data;
-    }
     mPaths.clear();
     mCurrentPath = nullptr;
     mNeedsFullRedraw = true;
@@ -250,7 +246,7 @@ namespace winrt::RNSketchCanvas::implementation
   void RNSketchCanvasView::newPath(int32_t id, uint32_t strokeColor, float strokeWidth)
   {
     Color color = Utility::uint32ToColor(strokeColor);
-    mCurrentPath = new SketchData(id, color, strokeWidth);
+    mCurrentPath = std::make_shared<SketchData>(id, color, strokeWidth);
     mPaths.push_back(mCurrentPath);
     // On Android, hardware acceleration is disabled when erasing here.
     // Looks like it could be done through ForceSoftwareRenderer.
@@ -276,7 +272,7 @@ namespace winrt::RNSketchCanvas::implementation
   void RNSketchCanvasView::addPath(int32_t id, uint32_t strokeColor, float strokeWidth, std::vector<float2> points)
   {
     bool exist = false;
-    for (SketchData* data : mPaths)
+    for (std::shared_ptr<SketchData> & data : mPaths)
     {
       if (data->id == id)
       {
@@ -285,7 +281,7 @@ namespace winrt::RNSketchCanvas::implementation
     }
     if (!exist)
     {
-      SketchData* newPath = new SketchData(id, Utility::uint32ToColor(strokeColor), strokeWidth, points);
+      std::shared_ptr<SketchData> newPath = std::make_shared<SketchData>(id, Utility::uint32ToColor(strokeColor), strokeWidth, points);
       mPaths.push_back(newPath);
       {
         auto session = mDrawingCanvas.value().CreateDrawingSession();
@@ -307,9 +303,7 @@ namespace winrt::RNSketchCanvas::implementation
     }
     if (index > -1)
     {
-      SketchData* path = mPaths[index];
       mPaths.erase(mPaths.begin() + index);
-      delete path;
       mNeedsFullRedraw = true;
       invalidateCanvas(true);
     }
@@ -408,7 +402,7 @@ namespace winrt::RNSketchCanvas::implementation
     {
       auto session = mDrawingCanvas.value().CreateDrawingSession();
       session.Clear(Colors::Transparent());
-      for (SketchData* path : mPaths)
+      for (std::shared_ptr<SketchData> & path : mPaths)
       {
         path->draw(session);
       }
@@ -429,7 +423,7 @@ namespace winrt::RNSketchCanvas::implementation
       );
     }
 
-    for (CanvasText* text : mArrSketchOnText)
+    for (std::shared_ptr<CanvasText> & text : mArrSketchOnText)
     {
       args.DrawingSession().DrawText(
         winrt::to_hstring(text->text),
@@ -449,7 +443,7 @@ namespace winrt::RNSketchCanvas::implementation
       args.DrawingSession().DrawImage(mTranslucentDrawingCanvas.value());
     }
     
-    for (CanvasText* text : mArrTextOnSketch)
+    for (std::shared_ptr<CanvasText> & text : mArrTextOnSketch)
     {
       args.DrawingSession().DrawText(
         winrt::to_hstring(text->text),
@@ -477,7 +471,7 @@ namespace winrt::RNSketchCanvas::implementation
         session.Clear(Colors::Transparent());
       }
 
-      for (CanvasText* text : mArrCanvasText)
+      for (std::shared_ptr<CanvasText> & text : mArrCanvasText)
       {
         float2 position = float2(text->position.x, text->position.y);
         if (!text->isAbsoluteCoordinate)
@@ -499,11 +493,6 @@ namespace winrt::RNSketchCanvas::implementation
 
   void RNSketchCanvasView::setCanvasText(JSValueArray const& aText)
   {
-    for (CanvasText* data : mArrCanvasText)
-    {
-      delete data;
-    }
-
     mArrCanvasText.clear();
     mArrSketchOnText.clear();
     mArrTextOnSketch.clear();
@@ -516,11 +505,11 @@ namespace winrt::RNSketchCanvas::implementation
         std::string alignment = property.find("alignment") != property.end() ? property["alignment"].AsString() : "Left";
         int lineOffset = 0, maxTextWidth = 0;
         std::vector<std::string> lines = Utility::splitLines(property["text"].AsString());
-        std::vector<CanvasText*> textSet;
+        std::vector<std::shared_ptr<CanvasText>> textSet;
         for (auto const& line : lines)
         {
-          std::vector<CanvasText*> & arr = property.find("overlay") != property.end() && property["overlay"].AsString() == "TextOnSketch" ? mArrTextOnSketch : mArrSketchOnText;
-          CanvasText* text = new CanvasText();
+          std::vector<std::shared_ptr<CanvasText>> & arr = property.find("overlay") != property.end() && property["overlay"].AsString() == "TextOnSketch" ? mArrTextOnSketch : mArrSketchOnText;
+          std::shared_ptr<CanvasText> text = std::make_shared<CanvasText>();
           text->paint.HorizontalAlignment(CanvasHorizontalAlignment::Left);
           text->text = line;
           if (property.find("font") != property.end())
@@ -554,7 +543,7 @@ namespace winrt::RNSketchCanvas::implementation
         }
         if (mCanvasControl.ActualWidth() > 0 && mCanvasControl.ActualHeight() > 0)
         {
-          for (CanvasText* text : textSet)
+          for (std::shared_ptr<CanvasText> & text : textSet)
           {
             text->height = lineOffset;
             float2 position = float2(text->position.x, text->position.y);
@@ -572,7 +561,7 @@ namespace winrt::RNSketchCanvas::implementation
         }
         if (lines.size() > 1)
         {
-          for (CanvasText* text : textSet)
+          for (std::shared_ptr<CanvasText> & text : textSet)
           {
             if (alignment == "Right")
             {
@@ -660,7 +649,7 @@ namespace winrt::RNSketchCanvas::implementation
 
       if (includeText)
       {
-        for (CanvasText* text : mArrSketchOnText)
+        for (std::shared_ptr<CanvasText> & text : mArrSketchOnText)
         {
           session.DrawText(
             winrt::to_hstring(text->text),
@@ -691,7 +680,7 @@ namespace winrt::RNSketchCanvas::implementation
 
       if (includeText)
       {
-        for (CanvasText* text : mArrTextOnSketch)
+        for (std::shared_ptr<CanvasText> & text : mArrTextOnSketch)
         {
           session.DrawText(
             winrt::to_hstring(text->text),
