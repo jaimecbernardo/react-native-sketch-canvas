@@ -45,10 +45,9 @@ namespace winrt::RNSketchCanvas::implementation
     mPath = this->isTranslucent ? evaluatePath() : nullptr;
   }
 
-  Rect SketchData::addPoint(const float2& p)
+  void SketchData::addPoint(const float2& p)
   {
     points.push_back(p);
-    Rect updateRect = Rect();
     int pointsCount = points.size();
     if (isTranslucent)
     {
@@ -65,22 +64,6 @@ namespace winrt::RNSketchCanvas::implementation
       {
         addPointToPath(p, p, p);
       }
-
-      float x = p.x, y = p.y;
-      if (!mDirty.has_value())
-      {
-        mDirty = Rect(x, y, 1, 1);
-        updateRect = Rect(x - strokeWidth, y - strokeWidth, strokeWidth * 2, strokeWidth * 2);
-      } else
-      {
-        mDirty = RectHelper::Union(mDirty.value(), p);
-        updateRect =
-          Rect(mDirty.value().X - strokeWidth,
-            mDirty.value().Y - strokeWidth,
-            mDirty.value().Width + strokeWidth * 2,
-            mDirty.value().Height + strokeWidth * 2
-          );
-      }
     } else
     {
       if (pointsCount >= 3)
@@ -91,29 +74,13 @@ namespace winrt::RNSketchCanvas::implementation
         float2 prevMid = midPoint(a, b);
         float2 currentMid = midPoint(b, c);
 
-        updateRect = Rect(prevMid.x, prevMid.y, 0, 0);
-        updateRect = RectHelper::Union(updateRect, b);
-        updateRect = RectHelper::Union(updateRect, currentMid);
       } else if (pointsCount >= 2)
       {
         float2 a = points[pointsCount - 2];
         float2 b = p;
         float2 mid = midPoint(a, b);
-        updateRect = Rect(a.x, a.y, 0, 0);
-        updateRect = RectHelper::Union(updateRect, mid);
-      } else
-      {
-        updateRect = Rect(p.x, p.y, 0, 0);
       }
-      updateRect = Rect(
-        updateRect.X - strokeWidth,
-        updateRect.Y - strokeWidth,
-        updateRect.Width + strokeWidth * 2,
-        updateRect.Height + strokeWidth * 2
-      );
     }
-    // roundout?
-    return updateRect;
   }
 
   void SketchData::drawLastPoint(const CanvasDrawingSession& canvasDS)

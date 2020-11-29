@@ -17,7 +17,7 @@ namespace winrt::RNSketchCanvas::implementation
     
     static winrt::Windows::Foundation::Numerics::float2 midPoint(const winrt::Windows::Foundation::Numerics::float2&, const winrt::Windows::Foundation::Numerics::float2&);
 
-    winrt::Windows::Foundation::Rect addPoint(const winrt::Windows::Foundation::Numerics::float2& p);
+    void addPoint(const winrt::Windows::Foundation::Numerics::float2& p);
     
     void drawLastPoint(const winrt::Microsoft::Graphics::Canvas::CanvasDrawingSession&);
     void draw(const winrt::Microsoft::Graphics::Canvas::CanvasDrawingSession&);
@@ -26,7 +26,6 @@ namespace winrt::RNSketchCanvas::implementation
   private:
     std::optional<winrt::Microsoft::Graphics::Canvas::Geometry::CanvasGeometry> mPath;
     static std::optional<winrt::Microsoft::Graphics::Canvas::Geometry::CanvasStrokeStyle> mStrokeStyle;
-    std::optional<winrt::Windows::Foundation::Rect> mDirty;
 
     static winrt::Microsoft::Graphics::Canvas::Geometry::CanvasStrokeStyle getStrokeStyle();
 

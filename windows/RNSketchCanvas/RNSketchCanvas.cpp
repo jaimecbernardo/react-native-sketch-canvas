@@ -32,7 +32,7 @@ namespace winrt::RNSketchCanvas::implementation
     mCanvasControl = Microsoft::Graphics::Canvas::UI::Xaml::CanvasControl();
     this->Children().Append(mCanvasControl);
     mCanvasControl.Background(SolidColorBrush(Colors::Transparent()));
-    // TODO: event tokens from these. Or use the revokers.
+    
     mCanvasDrawRevoker = mCanvasControl.Draw(winrt::auto_revoke, { get_weak(), &RNSketchCanvasView::OnCanvasDraw });
     mCanvaSizeChangedRevoker = mCanvasControl.SizeChanged(winrt::auto_revoke, { get_weak(), &RNSketchCanvasView::OnCanvasSizeChanged });
 
@@ -190,7 +190,6 @@ namespace winrt::RNSketchCanvas::implementation
 
   void RNSketchCanvasView::DispatchCommand(winrt::hstring const& commandId, winrt::Microsoft::ReactNative::IJSValueReader const& commandArgsReader) noexcept
   {
-    // TODO: handle commands here
     auto commandArgs = JSValue::ReadArrayFrom(commandArgsReader);
     if (commandId == L"addPoint")
     {
@@ -256,7 +255,7 @@ namespace winrt::RNSketchCanvas::implementation
 
   void RNSketchCanvasView::addPoint(float x, float y)
   {
-    Rect updateRect = mCurrentPath->addPoint(Point(x, y));
+    mCurrentPath->addPoint(Point(x, y));
     if (mCurrentPath->isTranslucent)
     {
       auto session = mTranslucentDrawingCanvas.value().CreateDrawingSession();
