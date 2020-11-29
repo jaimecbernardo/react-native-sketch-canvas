@@ -13,6 +13,17 @@ namespace winrt::RNSketchCanvas::implementation
     return false;
   }
 
+  bool Utility::isColorTransparent(winrt::Windows::UI::Color color) noexcept
+  {
+    // Windows Colors::Transparent is #00FFFFFF but JavaScript code uses #00000000. Let's consider both.
+    return
+      (color.A == 0) &&
+      (
+        (color.R == 0 && color.G == 0 && color.R == 0) ||
+        (color.R == 255 && color.G == 255 && color.R == 255)
+        );
+  }
+
   winrt::Windows::UI::Color Utility::uint32ToColor(uint32_t color) noexcept
   {
     winrt::Windows::UI::Color result;

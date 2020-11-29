@@ -31,7 +31,7 @@ namespace winrt::RNSketchCanvas::implementation
     this->id = id;
     this->strokeColor = strokeColor;
     this->strokeWidth = strokeWidth;
-    this->isTranslucent = strokeColor.A != 255 && !Utility::isSameColor(strokeColor, Colors::Transparent()) && strokeColor.A != 0;
+    this->isTranslucent = strokeColor.A != 255 && !Utility::isColorTransparent(strokeColor);
     mPath.reset(); // Geometry has to be created with something.
   }
 
@@ -41,7 +41,7 @@ namespace winrt::RNSketchCanvas::implementation
     this->strokeColor = strokeColor;
     this->strokeWidth = strokeWidth;
     this->points.insert(std::end(this->points), std::begin(points), std::end(points));
-    this->isTranslucent = strokeColor.A != 255 && !Utility::isSameColor(strokeColor, Colors::Transparent()) && strokeColor.A != 0;
+    this->isTranslucent = strokeColor.A != 255 && !Utility::isColorTransparent(strokeColor);
     mPath = this->isTranslucent ? evaluatePath() : nullptr;
   }
 
@@ -129,7 +129,7 @@ namespace winrt::RNSketchCanvas::implementation
   void SketchData::draw(const CanvasDrawingSession& canvasDS)
   {
     canvasDS.Blend(CanvasBlend::SourceOver);
-    bool isErase = Utility::isSameColor(strokeColor, Colors::Transparent()) || strokeColor.A == 0;
+    bool isErase = Utility::isColorTransparent(strokeColor);
     canvasDS.Blend(isErase ? CanvasBlend::Copy : CanvasBlend::SourceOver);
 
     if (this->isTranslucent)
@@ -153,7 +153,7 @@ namespace winrt::RNSketchCanvas::implementation
       return;
     }
 
-    bool isErase = Utility::isSameColor(strokeColor, Colors::Transparent()) || strokeColor.A == 0;
+    bool isErase = Utility::isColorTransparent(strokeColor);
     canvasDS.Blend(isErase ? CanvasBlend::Copy : CanvasBlend::SourceOver);
 
     if (pointsCount >= 3 && pointIndex >= 2)
